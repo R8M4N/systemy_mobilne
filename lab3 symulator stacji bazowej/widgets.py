@@ -24,27 +24,22 @@ class ChannelWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        painter.setBrush(QBrush(self._color))
-        painter.setPen(QPen(QColor("#0d1117"), 2))
-        painter.drawRoundedRect(2, 2, self.width() - 4, self.height() - 4, 8, 8)
-
-        painter.setPen(QColor("#ffffff"))
-        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        text = f"{self.remaining}s" if self.is_busy else "—"
-        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, text)
-
-        # numer kanału w rogu
-        painter.setFont(QFont("Segoe UI", 7))
-        painter.setPen(QColor("#aaaaaa"))
-        painter.drawText(8, 14, f"#{self.channel_id + 1}")
-        painter.end()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QBrush(self._color))
+        p.setPen(QPen(QColor("#0d1117"), 2))
+        p.drawRoundedRect(2, 2, self.width() - 4, self.height() - 4, 8, 8)
+        p.setPen(QColor("#ffffff"))
+        p.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                   f"{self.remaining}s" if self.is_busy else "—")
+        p.setFont(QFont("Segoe UI", 7))
+        p.setPen(QColor("#aaaaaa"))
+        p.drawText(8, 14, f"#{self.channel_id + 1}")
+        p.end()
 
 
 class ChannelsGridWidget(QWidget):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout_ = QGridLayout(self)
@@ -56,8 +51,6 @@ class ChannelsGridWidget(QWidget):
             self.layout_.removeWidget(w)
             w.deleteLater()
         self.channel_widgets.clear()
-
-        # ile kolumn - coś sensownego dla różnych ilości kanałów
         cols = max(2, min(6, int(count ** 0.5) + 1))
         for i in range(count):
             cw = ChannelWidget(i)
@@ -65,13 +58,12 @@ class ChannelsGridWidget(QWidget):
             self.layout_.addWidget(cw, i // cols, i % cols)
 
     def update_channels(self, channels_data):
-        for i, (is_busy, remaining, duration, served) in enumerate(channels_data):
+        for i, args in enumerate(channels_data):
             if i < len(self.channel_widgets):
-                self.channel_widgets[i].update_state(is_busy, remaining, duration, served)
+                self.channel_widgets[i].update_state(*args)
 
 
 class QueueWidget(QWidget):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -80,18 +72,13 @@ class QueueWidget(QWidget):
         self.progress.setTextVisible(True)
         self.progress.setStyleSheet("""
             QProgressBar {
-                border: 1px solid #30363d;
-                border-radius: 5px;
-                background: #161b22;
-                height: 22px;
-                text-align: center;
-                color: #e6edf3;
-                font-size: 11px;
+                border:1px solid #30363d; border-radius:5px;
+                background:#161b22; height:22px;
+                text-align:center; color:#e6edf3; font-size:11px;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #e94560, stop:1 #0f3460);
-                border-radius: 4px;
+                background:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #e94560,stop:1 #0f3460);
+                border-radius:4px;
             }
         """)
         layout.addWidget(self.progress)
@@ -103,7 +90,7 @@ class QueueWidget(QWidget):
 
 
 class ChartWidget(FigureCanvas):
-    #Liniowy wykres z ciemnym motywem
+    #Liniowy wykres
 
     def __init__(self, title, color, ylabel, parent=None):
         self.fig = Figure(figsize=(4, 2.2), dpi=100)
@@ -116,15 +103,16 @@ class ChartWidget(FigureCanvas):
         self._apply_style()
 
     def _apply_style(self):
-        self.ax.set_facecolor('#161b22')
-        self.ax.set_title(self.title, color='#e6edf3', fontsize=11, fontweight='bold', pad=8)
-        self.ax.tick_params(colors='#8b949e', labelsize=8)
-        self.ax.spines['bottom'].set_color('#30363d')
-        self.ax.spines['left'].set_color('#30363d')
-        self.ax.spines['top'].set_visible(False)
-        self.ax.spines['right'].set_visible(False)
-        self.ax.set_ylabel(self.ylabel, color='#8b949e', fontsize=9)
-        self.ax.set_xlabel('Czas [s]', color='#8b949e', fontsize=9)
+        ax = self.ax
+        ax.set_facecolor('#161b22')
+        ax.set_title(self.title, color='#e6edf3', fontsize=11, fontweight='bold', pad=8)
+        ax.tick_params(colors='#8b949e', labelsize=8)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_color('#30363d')
+        ax.spines['left'].set_color('#30363d')
+        ax.set_ylabel(self.ylabel, color='#8b949e', fontsize=9)
+        ax.set_xlabel('Czas [s]', color='#8b949e', fontsize=9)
         self.fig.tight_layout(pad=1.5)
 
     def update_chart(self, x_data, y_data):
@@ -144,34 +132,26 @@ class ChartWidget(FigureCanvas):
 
 
 class StatsPanel(QFrame):
-    #panel statystyk
+    _STYLE = "color:#e6edf3; font-size:12px; border:none; font-family:'Segoe UI';"
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            QFrame {
-                background: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 10px;
-                padding: 10px;
-            }
-        """)
+        self.setStyleSheet(
+            "QFrame { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:10px; }")
         layout = QVBoxLayout(self)
         layout.setSpacing(8)
-
-        self.served_label = self._make_label("Obsłużone: 0")
+        self.served_label   = self._make_label("Obsłużone: 0")
         self.rejected_label = self._make_label("Odrzucone: 0")
-        self.rho_label = self._make_label("ρ: 0.0000")
-        self.q_label = self._make_label("Q: 0.0000")
-        self.w_label = self._make_label("W: 0.0000 s")
-
+        self.rho_label      = self._make_label("ρ: 0.0000")
+        self.q_label        = self._make_label("Q: 0.0000")
+        self.w_label        = self._make_label("W: 0.0000 s")
         for lbl in [self.served_label, self.rejected_label,
                     self.rho_label, self.q_label, self.w_label]:
             layout.addWidget(lbl)
 
     def _make_label(self, text):
         lbl = QLabel(text)
-        lbl.setStyleSheet("color: #e6edf3; font-size: 12px; border: none; font-family: 'Segoe UI';")
+        lbl.setStyleSheet(self._STYLE)
         return lbl
 
     def update_stats(self, served, rejected, rho, q, w):
@@ -180,55 +160,3 @@ class StatsPanel(QFrame):
         self.rho_label.setText(f"ρ: {rho:.4f}")
         self.q_label.setText(f"Q: {q:.4f}")
         self.w_label.setText(f"W: {w:.4f} s")
-
-
-class PieChartWidget(FigureCanvas):
-    #Kołowy wykres obsłużone vs odrzucone
-
-    def __init__(self, parent=None):
-        self.fig = Figure(figsize=(3, 2.2), dpi=100)
-        self.fig.patch.set_facecolor('#0d1117')
-        super().__init__(self.fig)
-        self.ax = self.fig.add_subplot(111)
-        self._setup_empty()
-
-    def _safe_layout(self):
-        # tight_layout rzuca ValueError jeśli widget nie ma jeszcze wymiarów
-        try:
-            self.fig.tight_layout(pad=1.5)
-        except ValueError:
-            pass
-
-    def _setup_empty(self):
-        self.ax.clear()
-        self.ax.set_facecolor('#0d1117')
-        self.ax.set_title('Obsłużone / Odrzucone', color='#e6edf3', fontsize=11, fontweight='bold', pad=8)
-        self.ax.text(0.5, 0.5, 'Brak danych', ha='center', va='center',
-                     color='#484f58', fontsize=10, transform=self.ax.transAxes)
-        self.ax.axis('off')
-        self._safe_layout()
-        self.draw()
-
-    def update_pie(self, served, rejected):
-        self.ax.clear()
-        self.ax.set_facecolor('#0d1117')
-        self.ax.set_title('Obsłużone / Odrzucone', color='#e6edf3', fontsize=11, fontweight='bold', pad=8)
-
-        if served + rejected == 0:
-            self.ax.text(0.5, 0.5, 'Brak danych', ha='center', va='center',
-                         color='#484f58', fontsize=10, transform=self.ax.transAxes)
-            self.ax.axis('off')
-        else:
-            self.ax.pie(
-                [served, rejected],
-                labels=[f'Obsłużone\n{served}', f'Odrzucone\n{rejected}'],
-                colors=['#2d6a4f', '#e94560'],
-                explode=(0.03, 0.03),
-                startangle=90,
-                textprops={'color': '#e6edf3', 'fontsize': 9}
-            )
-        self._safe_layout()
-        self.draw()
-
-    def reset(self):
-        self._setup_empty()
